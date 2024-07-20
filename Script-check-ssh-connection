@@ -1,0 +1,40 @@
+#Скрипт POWERSHELL берет серверы из файла input_servers.txt построчно и проверяет к ним соединение по ssh через plink.exe. Сервера, которые возвращают ответ на команду file[--help], он помещает в отдельну юпапку ok-servers, недоступные сервера в fail-servers.
+
+$Cred = Get-Credential
+$username-$Cred.Username
+$password=$Cred.GetNetworkCredential().password
+$Computers = $Computers = Get-Content -Path C:\Users\Public\Documents\input servers.txt | Where-Object { $_ -match '\S'}
+$lastDataRow = ''
+Shostname_arm=hostname
+$raw ip = ipconfig | findstr /i "ipv4"
+$ip arm = Sraw ip.split([Environment]::Newlane) | EorEach-object ($_.Split (":") [1]}
+foreach ($Computer in $Computers)
+Sa = [PowerShell]::Create().Addscript{timeout /t 20 *> Snull; taskkill /IM plink.exe /f *>$null}
+$rl = ($a).begininvoke()
+Splink = "echo Y | plink.exe
+Splinkoptions1 = "-ssh"
+Splinkoptions2 = "-pw"
+SremoteCommand= '"file"'
+Soutputf = "*>C:\Users\Public\ Decuments\main output.txt"
+Scomand = $plink + " " + $plinkoptions1 + " " + $username "@" + $Computer + " " + $plinkoptions2 + " " + $remoteCommand + " " + $outputf
+Smsg = Invoke-expression -Command Scommand
+Sa.EndInvoke($rl);
+($a).streams.error
+($a).dispose()
+$stroka = Get-Content C:\Users\Public\Documents\main_output.txt -Raw
+if($stroka)
+{
+	$stroka = $stroka.Trim()
+}
+$stroka = $stroka -replace '\s','')
+Spodstroka = "file[--help]"
+if ($null -ne ($podstroka | ? { $stroka -match $_ }))
+{
+	New-Item -Path C:\Users\Public\Documents\ok-servers_$username -Force -Name "ok-server($Computer`)_login-server($username`)_USER-ARM($hostname_arm` $ip_arm`).txt" -ItemType "file" -Value "$username $Computer OK_CONNECTION`r`n" *> $null
+}
+else
+{
+	New-Item -Path C:\Users\Public\Documents\fail-servers_$username -Force -Name "fail-server($Computer`)_login-server($username`)_USER-ARM($hostname_arm` $ip_arm`).txt" -ItemType "file" -Value "$username $Computer FAIL_CONNECTION`r`n" *> $null
+}
+Clear-Content C:\Users\Public\Documents\main_output.txt
+Remove-Item C:\Users\Public\Documents\main_output.txt
