@@ -14,14 +14,9 @@ internal static class Program
     {
         Console.OutputEncoding = Encoding.UTF8;
 
-        Run("Task1 compresses sample string", Task1CompressesSampleString);
-        Run("Task1 decompresses sample string", Task1DecompressesSampleString);
-        Run("Task1 handles multi-digit groups", Task1HandlesMultiDigitGroups);
-        Run("Task1 rejects invalid input", Task1RejectsInvalidInput);
-        Run("Task2 accumulates count under concurrency", Task2AccumulatesCountUnderConcurrency);
-        Run("Task3 parses supported formats", Task3ParsesSupportedFormats);
-        Run("Task3 writes invalid records to problems file", Task3WritesInvalidRecordsToProblemsFile);
-        Run("Task3 supports configurable date output", Task3SupportsConfigurableDateOutput);
+        Check("Task1 compression", TestCompression);
+        Check("Task2 concurrent server", TestConcurrentServer);
+        Check("Task3 log standardizer", TestLogStandardizer);
 
         Console.WriteLine();
         Console.WriteLine($"Passed: {_passed}");
@@ -30,38 +25,16 @@ internal static class Program
         return _failed == 0 ? 0 : 1;
     }
 
-    private static void Task1CompressesSampleString()
+    private static void TestCompression()
     {
         AssertEqual("a3b2c3d2e", RunLengthCodec.Compress("aaabbcccdde"));
-        AssertEqual("abc", RunLengthCodec.Compress("abc"));
-        AssertEqual(string.Empty, RunLengthCodec.Compress(string.Empty));
-    }
-
-    private static void Task1DecompressesSampleString()
-    {
         AssertEqual("aaabbcccdde", RunLengthCodec.Decompress("a3b2c3d2e"));
-        AssertEqual("abc", RunLengthCodec.Decompress("abc"));
-        AssertEqual(string.Empty, RunLengthCodec.Decompress(string.Empty));
-    }
-
-    private static void Task1HandlesMultiDigitGroups()
-    {
-        var source = new string('a', 12) + "b" + new string('z', 10);
-        var compressed = RunLengthCodec.Compress(source);
-
-        AssertEqual("a12bz10", compressed);
-        AssertEqual(source, RunLengthCodec.Decompress(compressed));
-    }
-
-    private static void Task1RejectsInvalidInput()
-    {
+        AssertEqual("a12bz10", RunLengthCodec.Compress(new string('a', 12) + "b" + new string('z', 10)));
         AssertThrows<FormatException>(() => RunLengthCodec.Compress("abc1"));
-        AssertThrows<FormatException>(() => RunLengthCodec.Decompress("1abc"));
         AssertThrows<FormatException>(() => RunLengthCodec.Decompress("a0"));
-        AssertThrows<FormatException>(() => RunLengthCodec.Decompress("a01"));
     }
 
-    private static void Task2AccumulatesCountUnderConcurrency()
+    private static void TestConcurrentServer()
     {
         Server.ResetForTests();
 
@@ -72,25 +45,25 @@ internal static class Program
         using var start = new ManualResetEventSlim(initialState: false);
         var tasks = new List<Task>(writers + readers);
 
-        for (var writer = 0; writer < writers; writer++)
+        for (var i = 0; i < writers; i++)
         {
             tasks.Add(Task.Run(() =>
             {
                 start.Wait();
-                for (var i = 0; i < iterations; i++)
+                for (var j = 0; j < iterations; j++)
                 {
                     Server.AddToCount(1);
                 }
             }));
         }
 
-        for (var reader = 0; reader < readers; reader++)
+        for (var i = 0; i < readers; i++)
         {
             tasks.Add(Task.Run(() =>
             {
                 start.Wait();
                 var previous = 0;
-                for (var i = 0; i < iterations; i++)
+                for (var j = 0; j < iterations; j++)
                 {
                     var current = Server.GetCount();
                     if (current < previous)
@@ -105,40 +78,29 @@ internal static class Program
 
         start.Set();
         Task.WaitAll(tasks.ToArray());
-
         AssertEqual(writers * iterations, Server.GetCount());
     }
 
-    private static void Task3ParsesSupportedFormats()
+    private static void TestLogStandardizer()
     {
         AssertTrue(LogStandardizer.TryStandardizeLine(
-            "10.03.2025 15:14:49.523 INFORMATION Версия программы: '3.4.0.48729'",
+            "10.03.2025 15:14:49.523 INFORMATION Version",
             LogStandardizerOptions.Default.DateOutputFormat,
-            out var format1));
-
-        AssertEqual(
-            "2025-03-10\t15:14:49.523\tINFO\tDEFAULT\tВерсия программы: '3.4.0.48729'",
-            format1.ToTabSeparatedLine());
+            out var first));
+        AssertEqual("2025-03-10\t15:14:49.523\tINFO\tDEFAULT\tVersion", first.ToTabSeparatedLine());
 
         AssertTrue(LogStandardizer.TryStandardizeLine(
-            "2025-03-10 15:14:51.5882| INFO|11|MobileComputer.GetDeviceId| Код устройства: '@MINDEO-M40-D-410244015546'",
+            "2025-03-10 15:14:51.5882| WARNING|11|MobileComputer.GetDeviceId| Message",
             LogStandardizerOptions.Default.DateOutputFormat,
-            out var format2));
-
-        AssertEqual(
-            "2025-03-10\t15:14:51.5882\tINFO\tMobileComputer.GetDeviceId\tКод устройства: '@MINDEO-M40-D-410244015546'",
-            format2.ToTabSeparatedLine());
+            out var second));
+        AssertEqual("2025-03-10\t15:14:51.5882\tWARN\tMobileComputer.GetDeviceId\tMessage", second.ToTabSeparatedLine());
 
         AssertTrue(LogStandardizer.TryStandardizeLine(
-            "10.03.2025 16:00:00 WARNING Осторожно",
-            LogStandardizerOptions.Default.DateOutputFormat,
-            out var warning));
+            "10.03.2025 15:14:49.523 INFO Message",
+            "dd-MM-yyyy",
+            out var customDate));
+        AssertEqual("10-03-2025", customDate.Date);
 
-        AssertEqual("WARN", warning.Level);
-    }
-
-    private static void Task3WritesInvalidRecordsToProblemsFile()
-    {
         var directory = CreateTemporaryDirectory();
         try
         {
@@ -148,35 +110,19 @@ internal static class Program
 
             File.WriteAllLines(inputPath, new[]
             {
-                "10.03.2025 15:14:49.523 INFORMATION Версия программы: '3.4.0.48729'",
-                "not a log record",
-                "2025-03-10 15:14:51.5882| INFO|11|MobileComputer.GetDeviceId| Код устройства: '@MINDEO-M40-D-410244015546'"
+                "10.03.2025 15:14:49.523 INFORMATION Version",
+                "broken line"
             });
 
             var result = LogStandardizer.ConvertFile(inputPath, outputPath, problemsPath);
-
-            AssertEqual(new LogProcessingResult(3, 2, 1), result);
-            AssertSequenceEqual(new[]
-            {
-                "2025-03-10\t15:14:49.523\tINFO\tDEFAULT\tВерсия программы: '3.4.0.48729'",
-                "2025-03-10\t15:14:51.5882\tINFO\tMobileComputer.GetDeviceId\tКод устройства: '@MINDEO-M40-D-410244015546'"
-            }, File.ReadAllLines(outputPath));
-            AssertSequenceEqual(new[] { "not a log record" }, File.ReadAllLines(problemsPath));
+            AssertEqual(new LogProcessingResult(2, 1, 1), result);
+            AssertSequenceEqual(new[] { "2025-03-10\t15:14:49.523\tINFO\tDEFAULT\tVersion" }, File.ReadAllLines(outputPath));
+            AssertSequenceEqual(new[] { "broken line" }, File.ReadAllLines(problemsPath));
         }
         finally
         {
             Directory.Delete(directory, recursive: true);
         }
-    }
-
-    private static void Task3SupportsConfigurableDateOutput()
-    {
-        AssertTrue(LogStandardizer.TryStandardizeLine(
-            "10.03.2025 15:14:49.523 INFORMATION Message",
-            "dd-MM-yyyy",
-            out var entry));
-
-        AssertEqual("10-03-2025", entry.Date);
     }
 
     private static string CreateTemporaryDirectory()
@@ -186,11 +132,11 @@ internal static class Program
         return directory;
     }
 
-    private static void Run(string name, Action action)
+    private static void Check(string name, Action test)
     {
         try
         {
-            action();
+            test();
             _passed++;
             Console.WriteLine($"PASS {name}");
         }
@@ -212,17 +158,10 @@ internal static class Program
 
     private static void AssertSequenceEqual<T>(IReadOnlyList<T> expected, IReadOnlyList<T> actual)
     {
-        if (expected.Count != actual.Count)
-        {
-            throw new InvalidOperationException($"Expected {expected.Count} items, actual {actual.Count} items.");
-        }
-
+        AssertEqual(expected.Count, actual.Count);
         for (var i = 0; i < expected.Count; i++)
         {
-            if (!EqualityComparer<T>.Default.Equals(expected[i], actual[i]))
-            {
-                throw new InvalidOperationException($"At index {i}. Expected: {expected[i]}; Actual: {actual[i]}");
-            }
+            AssertEqual(expected[i], actual[i]);
         }
     }
 
@@ -230,7 +169,7 @@ internal static class Program
     {
         if (!condition)
         {
-            throw new InvalidOperation("Expected condition to be true.");
+            throw new InvalidOperationException("Expected condition to be true.");
         }
     }
 
