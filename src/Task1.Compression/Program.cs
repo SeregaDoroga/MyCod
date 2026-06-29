@@ -7,6 +7,8 @@ internal static class Program
 {
     private static int Main(string[] args)
     {
+        // UTF-8 keeps Russian help and error messages readable in modern
+        // terminals on Windows and Linux.
         Console.OutputEncoding = Encoding.UTF8;
 
         if (args.Length == 0 || IsHelp(args[0]))
@@ -25,6 +27,8 @@ internal static class Program
             var mode = args[0].Trim().ToLowerInvariant();
             var text = args[1];
 
+            // The console app is intentionally thin: all algorithmic work is in
+            // MyCod.Core so it can be reused and tested without console IO.
             var result = mode switch
             {
                 "compress" or "c" => RunLengthCodec.Compress(text),

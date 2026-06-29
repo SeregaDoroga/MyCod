@@ -14,6 +14,8 @@ internal static class Program
     {
         Console.OutputEncoding = Encoding.UTF8;
 
+        // The tests are a simple console runner instead of xUnit/NUnit so the
+        // repository can be restored without downloading any external packages.
         Check("Task1 compression", TestCompression);
         Check("Task2 concurrent server", TestConcurrentServer);
         Check("Task3 log standardizer", TestLogStandardizer);
@@ -27,9 +29,14 @@ internal static class Program
 
     private static void TestCompression()
     {
+        // The sample from the task plus a multi-digit count cover the most
+        // important codec behavior.
         AssertEqual("a3b2c3d2e", RunLengthCodec.Compress("aaabbcccdde"));
         AssertEqual("aaabbcccdde", RunLengthCodec.Decompress("a3b2c3d2e"));
         AssertEqual("a12bz10", RunLengthCodec.Compress(new string('a', 12) + "b" + new string('z', 10)));
+
+        // Invalid alphabet symbols and impossible counts should be rejected
+        // explicitly instead of producing a misleading string.
         AssertThrows<FormatException>(() => RunLengthCodec.Compress("abc1"));
         AssertThrows<FormatException>(() => RunLengthCodec.Decompress("a0"));
     }
@@ -76,6 +83,8 @@ internal static class Program
             }));
         }
 
+        // Releasing all tasks at once increases the chance of detecting locking
+        // mistakes compared with starting each task independently.
         start.Set();
         Task.WaitAll(tasks.ToArray());
         AssertEqual(writers * iterations, Server.GetCount());
@@ -114,6 +123,8 @@ internal static class Program
                 "broken line"
             });
 
+            // File-level test verifies both successful conversion and exact
+            // preservation of invalid lines in problems.txt.
             var result = LogStandardizer.ConvertFile(inputPath, outputPath, problemsPath);
             AssertEqual(new LogProcessingResult(2, 1, 1), result);
             AssertSequenceEqual(new[] { "2025-03-10\t15:14:49.523\tINFO\tDEFAULT\tVersion" }, File.ReadAllLines(outputPath));

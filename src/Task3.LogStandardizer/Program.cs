@@ -25,6 +25,9 @@ internal static class Program
 
             var inputPath = args[0];
             var outputPath = args[1];
+
+            // By default problems.txt is written next to the standardized output
+            // file. The user can override the path with --problems.
             var problemsPath = Path.Combine(
                 Path.GetDirectoryName(Path.GetFullPath(outputPath)) ?? Environment.CurrentDirectory,
                 "problems.txt");
@@ -45,6 +48,8 @@ internal static class Program
                 }
             }
 
+            // The alias avoids a name collision between the console project
+            // namespace Task3.LogStandardizer and the core LogStandardizer class.
             var result = CoreLogStandardizer.ConvertFile(
                 inputPath,
                 outputPath,

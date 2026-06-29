@@ -18,6 +18,9 @@ internal static class Program
 
         try
         {
+            // These parameters make the program useful as a small stress demo:
+            // readers call GetCount, writers call AddToCount, and the final
+            // value must equal writers * iterations.
             var readers = ReadIntOption(args, "--readers", 24);
             var writers = ReadIntOption(args, "--writers", 6);
             var iterations = ReadIntOption(args, "--iterations", 10_000);
@@ -35,6 +38,8 @@ internal static class Program
             {
                 tasks.Add(Task.Run(() =>
                 {
+                    // All workers wait for one signal so that reads and writes
+                    // really overlap instead of starting one after another.
                     start.Wait();
                     for (var i = 0; i < iterations; i++)
                     {

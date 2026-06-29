@@ -3,8 +3,19 @@ using System.Text;
 
 namespace MyCod.Core.Compression;
 
+/// <summary>
+/// Implements a small run-length encoding codec for strings that contain only
+/// lowercase Latin letters. The compressed form stores every group as a letter
+/// and, only when the group length is greater than one, the decimal count.
+/// Example: <c>aaabbcccdde</c> becomes <c>a3b2c3d2e</c>.
+/// </summary>
 public static class RunLengthCodec
 {
+    /// <summary>
+    /// Compresses a source string by replacing consecutive equal letters with
+    /// a pair "letter + count". A single letter is written without count,
+    /// because <c>a1</c> would be longer and is not required by the task.
+    /// </summary>
     public static string Compress(string source)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -14,11 +25,16 @@ public static class RunLengthCodec
             return string.Empty;
         }
 
+        // StringBuilder avoids creating a new string after every appended group.
+        // The initial capacity is a conservative estimate; compressed text can
+        // be slightly longer only for unusual inputs such as "aaaaaaaaaa" -> "a10".
         var builder = new StringBuilder(source.Length);
         var current = source[0];
         EnsureLowercaseLatin(current, 0);
         var count = 1;
 
+        // Scan once from left to right. When the current run ends, write it to
+        // the result and start counting the next run.
         for (var i = 1; i < source.Length; i++)
         {
             var symbol = source[i];
@@ -35,10 +51,17 @@ public static class RunLengthCodec
             count = 1;
         }
 
+        // The last run is not written inside the loop, so it must be flushed
+        // after the scan completes.
         AppendGroup(builder, current, count);
         return builder.ToString();
     }
 
+    /// <summary>
+    /// Restores a string from the compressed representation produced by
+    /// <see cref="Compress"/>. Counts may contain several digits, for example
+    /// <c>a12</c>. Counts with zero or a leading zero are rejected as invalid.
+    /// </summary>
     public static string Decompress(string compressed)
     {
         ArgumentNullException.ThrowIfNull(compressed);
@@ -52,6 +75,8 @@ public static class RunLengthCodec
             EnsureLowercaseLatin(symbol, index);
             index++;
 
+            // After a letter there may be zero or more decimal digits. No digits
+            // means that the original group contained exactly one letter.
             var countStart = index;
             while (index < compressed.Length && IsAsciiDigit(compressed[index]))
             {
